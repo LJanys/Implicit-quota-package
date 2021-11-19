@@ -127,12 +127,7 @@ boot_fun<-function(z,data,means,seed=10,reps=100){
         }
         return(list(counts=counts,tot_freq=tot_freq,k=k))
       }
-      #print(bin_new(k,p)$tot_freq)
       data_simulated<-c(data_simulated,bin_new(k,p)$tot_freq)
-      # append(data_simulated,bin_new(k,p)$tot_freq,after=length(data_simulated))
-      #data_simulated[]<-c(data_simulated,bin_new(k,p)$tot_freq)
-      #size_sim<-c(size_sim,k)
-      #max_count[i,]<-simu_fun(code[i],data,reps = 1000)$max_count
     }
     data_simulated<-data.frame(data_simulated,data$Size-data_simulated,data$Size,data$Share,data$Code)
     names(data_simulated)<-c("FE","M","Size","Share","Code")
@@ -143,7 +138,6 @@ boot_fun<-function(z,data,means,seed=10,reps=100){
     {
       results1[i]<-simu_fun(code[i],data_simulated,reps = reps,z)$m.res
       counts[i]<-simu_fun(code[i],data_simulated,reps = reps,z)$counts1
-      #max_count[i,]<-simu_fun(code[i],data,reps = 1000)$max_count
     }
     diff<-counts-results1##if this difference is negative: then on average, there are too few zero women departments.
     mefe[j]<-sum(diff)###this is then: 0.4 fewer zero women departments than expected.
@@ -194,7 +188,6 @@ simu_fun<-function(code,data,reps,z)
   return(list(counts1=counts1, m.res= m.res,counts=counts)) 
 }
 
-#######needs to be moved to the simulation file##########
 esti_fisher<-function(f_z,means)####arguments: z from the paper, i.e. f_z=0 # of zero women departments, means: 50x2 tibble: discipline code s, p_s
 {
   E<-c()
@@ -209,28 +202,23 @@ esti_fisher<-function(f_z,means)####arguments: z from the paper, i.e. f_z=0 # of
   b.test<-c()
   var_s<-c()
   Code=unique(data[,5])
+  #####I program this by discipline, however the procedure is as described in the paper.
   for(i in 1:S)
   {
     code=Code[i]
     df_s<-subset(data,data[,5]==code)###subsets the data for one discipline given by "code"
     p<-subset(means[,2],means[,1]==code) ###Calculate the discipline mean (p.hat) 
-    p=as.numeric(p)
+    p=as.numeric(p)###p_s
     n<-dim(df_s)[1]## the number of departments### 
-    k<-df_s$Size ### the vector of department sizes
-    # w[i]<- #n#sum(k) 
-    ###the weights do not accurately reflect the expected variance at the effect size. Maybe: use the expected number as the weights
-    ###
-    #p_k=(dbinom(f_z,k,p))
+    k<-df_s$Size ### the vector of department sizes, within one discipline, i.e. n_d for all d in s.
     fe_f<-df_s$FE## the number of women in each department
-    ###can calculate expected values in the same loop:
-    p_zds=dbinom(f_z,k,p)##I think this is right!
-    E[i]<-sum(dbinom(f_z,k,p))##I think this is right!
+    p_zds=dbinom(f_z,k,p)##p_d|s(z) from the paper
+    E[i]<-sum(dbinom(f_z,k,p))##
     w[i]<-sum((1-p_zds)*p_zds)#(n-1)#*(1/E[i])#E[i]#n#sum(k) 
     # E.hat[i]<-sum(dbinom(f_z,X[,i],p.hat[i]))
     ### Now: calculate the number of zero women departments in the sample: 
     counts<-as.data.frame(table(fe_f)) ###these are the counts from the 
     var_s[i]=sum(( 1- p_zds)* p_zds)
-    # counts_res<-as.data.frame(table(results))
     if((length(subset(counts$Freq,counts$fe_f==f_z)>0)))
     {
       counts1[i]<- subset(counts$Freq,counts$fe_f==f_z)
@@ -238,289 +226,38 @@ esti_fisher<-function(f_z,means)####arguments: z from the paper, i.e. f_z=0 # of
     dev[i]<-counts1[i]-E[i]#as.character.factor(counts$Freq)#as.numeric(levels(counts))[f]-E###from the analytical probability
     #print(dev)
     lt=dev[i]<0###left-tailed: when lower.tail is true: it is a left tailed test, i.e. H_0:mu=mu_fz, H_a: mu<mu_fz
-    #dev.hat<-counts1[i]-E.hat[i]####from the estimated probability
     theta_null<-E[i]/n
     theta.hat<-counts1[i]/n
-    ###this is the test statistic that tests against H<: theta>theta_null, this then implies that theta
     ltt=ifelse(lt==1,1,-1)
     Y_sdi<-fe_f==f_z
-    
-    
     Z1<-sqrt(n)*(1/n)*sum(Y_sdi- p_zds)
     Z2<-sqrt(((sum((1-p_zds)*p_zds))/n))
     Z_score= Z1/Z2
-    
-    z[i]<-Z1/Z2#sqrt(n)*(theta.hat-theta_null)/sqrt(theta_null*(1-theta_null))
-    ####conctinuity correctio
-    #Z1<-sqrt(n)*(1/n)*sum(Y_sdi-p_zds-((ltt*(1/2)+(1-ltt)*0.5)))
-    # Z2<-sqrt(((sum((1-p_zds)*p_zds))/n))
-    #Z_cont=Z1/Z2
-    #z_c[i]=Z_cont #(counts1[i]-n*theta_null-ltt*(1/2)/S)/(sqrt(n*theta_null*(1-theta_null)))
-    
+    z[i]<-Z1/Z2
+    ####Possible: continuity correction
+    ## Z1<-sqrt(n)*(1/n)*sum(Y_sdi-p_zds-((ltt*(1/2)+(1-ltt)*0.5)))
+    ## Z2<-sqrt(((sum((1-p_zds)*p_zds))/n))
+    ## Z_cont=Z1/Z2
+    ## z_c[i]=Z_cont #(counts1[i]-n*theta_null-ltt*(1/2)/S)/(sqrt(n*theta_null*(1-theta_null)))
   }
-  #####Calculate the combined Z score####
-  #####
-  #chi2=sum((dev)^2/E)
-  #lt=sum(dev)<0
-  #p_chi2= pchisq(chi2, df=S, ncp = 0, lower.tail = lt)
-  
-  ##For each discipline: realized mu-mu_0
-  
+  #####Calculate the individual ####
   for(i in 1:S)
   {
-    p.val[i]= ifelse(lt==1,pnorm(z[i]),1-pnorm(z[i]))
+    p.val[i]= 2*pnorm((z[i]), lower.tail=FALSE)#for a one-sided testifelse(lt==1,pnorm(z[i]),1-pnorm(z[i]))
   }
-  
   Z1<-sum(z)
   Z2<-sqrt(S)
   Z_s= Z1/Z2
-  # p_val_c= ifelse( lt<0,pnorm( lt),1-pnorm( lt)
-  # Z_s<-sum(z)/sqrt(S)
-  # Z_cs<-sum(z_c)/sqrt(S)
-  ###this is correct of the Z value is negative
-  ##otherwise: 1-pnorm(Z_s)
-  p_val_Z_s<-ifelse(Z_s<0,pnorm(Z_s),1-pnorm(Z_s))
+  p_val_Z_s<-2*pnorm((Z_s), lower.tail=FALSE)#for two-sided test ifelse(Z_s<0,pnorm(Z_s),1-pnorm(Z_s))
   p_val_Z_s
-  # p_val_Z_cs<-ifelse(Z_cs<0,pnorm(Z_cs),1-pnorm(Z_cs))
-  #p_val_Z_cs
-  ####When do we reject? Maybe for the combined test: take the absolute value: 
-  #####Calculate the weighted, combined Z score####
-  #####These should give aprox. the same when the department sizes are the same and when the number of departments does not differ too much 
-  #####between disciplines###############################
-  #w=colSums(X)
   Z_sw<-sum(z*w)/sqrt(sum(w^2))
-  # Z_csw<-sum(z_c*w)/sqrt(sum(w^2))
   p_val_Z_sw<-ifelse( Z_sw<0,pnorm( Z_sw),1-pnorm( Z_sw))
   p_val_Z_sw
-  # p_val_Z_csw<-ifelse(Z_csw<0,pnorm(Z_csw),1-pnorm(Z_csw))
-  # p_val_Z_csw
   #######################################################################################
-  #b.test<-ifelse(lt==1,binom.test((dev<0),50, 0.5, alternative = "greater"), binom.test((sum(dev>0)),50, 0.5, alternative = "greater")) #(one-tailed test)) #(one-tailed test))
   b.test= ifelse(lt==1,binom.test(sum(dev<0),S, 0.5, alternative = "greater")$p.value, binom.test(sum(dev>0),S, 0.5, alternative = "greater")$p.value)
-  ####We could combine the p-value also, according to fisher
-  #chi2<--2*sum(log(p.val))
-  #chi2_c<--2*sum(log(p_val_Z_cs))
-  #lt=Z_sw<0
-  #pchisq(chi2, df=2*S, ncp = 0, lower.tail = lt)
-  # pchisq(chi2_c, df=2*S, ncp = 0, lower.tail = lt)
-  # Z<-cbind(sum(dev),Z_s,Z_cs,Z_sw,Z_csw,p_val_Z_s,p_val_Z_cs,p_val_Z_sw, p_val_Z_csw,b.test,round(p_chi2,7),f_z)
   Z<-cbind(sum(dev),Z_s,Z_sw,p_val_Z_s,p_val_Z_sw,b.test,f_z)
-  Z.names<-cbind("sum(dev)","Z_s","Z_sw","p_val_Z_s","p_val_Z_sw","b.test","f_z")
-  # Z.names<-cbind("Z_s","Z_cs","Z_sw","Z_csw","p_val_Z_s","p_val_Z_cs","p_val_Z_sw", "p_val_Z_csw","b.test","p_chi2","f_z")
-  #if(f_z==0){names(Z)}
+  Z.names<-cbind("sum(dev)","Z_s","Z_sw","p_val_Z_s","p_val_Z_sw","b.test","z")
   write.table(Z,file=paste0("table_tests_",f_z))
   write.table(Z,file="table_tests_all_new",append=T,col.names = ifelse(f_z==100,T,F),row.names=F)
   return(Z)
-}
-# esti_fisher<-function(f_z)
-# {
-#   E<-c()
-#   E.hat<-c()
-#   counts1=c()
-#   z=c()
-#   #  z_c=c()
-#   p.val<-c()
-#   p_val_c<-c()
-#   w=c()
-#   dev=c()
-#   b.test<-c()
-#   var_s<-c()
-#   Code=unique(data[,5])
-#   for(i in 1:S)
-#   {
-#     code=Code[i]
-#     df_s<-subset(data,data[,5]==code)###subsets the data for one discipline given by "code"
-#     p<-subset(means[,2],means[,1]==code) ###Calculate the discipline mean (p.hat) 
-#     p=as.numeric(p)
-#     n<-dim(df_s)[1]## the number of departments### 
-#     k<-df_s$Size ### the vector of department sizes
-#     # w[i]<- #n#sum(k) 
-#     ###the weights do not accurately reflect the expected variance at the effect size. Maybe: use the expected number as the weights
-#     ###
-#     #p_k=(dbinom(f_z,k,p))
-#     fe_f<-df_s$FE## the number of women in each department
-#     ###can calculate expected values in the same loop:
-#     p_zds=dbinom(f_z,k,p)##I think this is right!
-#     E[i]<-sum(dbinom(f_z,k,p))##I think this is right!
-#     w[i]<-sum((1-p_zds)*p_zds)#(n-1)#*(1/E[i])#E[i]#n#sum(k) 
-#     # E.hat[i]<-sum(dbinom(f_z,X[,i],p.hat[i]))
-#     ### Now: calculate the number of zero women departments in the sample: 
-#     counts<-as.data.frame(table(fe_f)) ###these are the counts from the 
-#     var_s[i]=sum(( 1- p_zds)* p_zds)
-#     # counts_res<-as.data.frame(table(results))
-#     if((length(subset(counts$Freq,counts$fe_f==f_z)>0)))
-#     {
-#       counts1[i]<- subset(counts$Freq,counts$fe_f==f_z)
-#     } else{ counts1[i]<-0}
-#     dev[i]<-counts1[i]-E[i]#as.character.factor(counts$Freq)#as.numeric(levels(counts))[f]-E###from the analytical probability
-#     #print(dev)
-#     lt=dev[i]<0###left-tailed: when lower.tail is true: it is a left tailed test, i.e. H_0:mu=mu_fz, H_a: mu<mu_fz
-#     #dev.hat<-counts1[i]-E.hat[i]####from the estimated probability
-#     theta_null<-E[i]/n
-#     theta.hat<-counts1[i]/n
-#     ###this is the test statistic that tests against H<: theta>theta_null, this then implies that theta
-#     ltt=ifelse(lt==1,1,-1)
-#     Y_sdi<-fe_f==f_z
-#     
-#     
-#     Z1<-sqrt(n)*(1/n)*sum(Y_sdi- p_zds)
-#     Z2<-sqrt(((sum((1-p_zds)*p_zds))/n))
-#     Z_score= Z1/Z2
-#     
-#     z[i]<-Z1/Z2#sqrt(n)*(theta.hat-theta_null)/sqrt(theta_null*(1-theta_null))
-#     ####conctinuity correctio
-#     #Z1<-sqrt(n)*(1/n)*sum(Y_sdi-p_zds-((ltt*(1/2)+(1-ltt)*0.5)))
-#     # Z2<-sqrt(((sum((1-p_zds)*p_zds))/n))
-#     #Z_cont=Z1/Z2
-#     #z_c[i]=Z_cont #(counts1[i]-n*theta_null-ltt*(1/2)/S)/(sqrt(n*theta_null*(1-theta_null)))
-#     
-#   }
-#   #####Calculate the combined Z score####
-#   #####
-#   #chi2=sum((dev)^2/E)
-#   #lt=sum(dev)<0
-#   #p_chi2= pchisq(chi2, df=S, ncp = 0, lower.tail = lt)
-#   
-#   ##For each discipline: realized mu-mu_0
-#   
-#   for(i in 1:S)
-#   {
-#     p.val[i]= ifelse(lt==1,pnorm(z[i]),1-pnorm(z[i]))
-#   }
-#   
-#   Z1<-sum(z)
-#   Z2<-sqrt(S)
-#   Z_s= Z1/Z2
-#   # p_val_c= ifelse( lt<0,pnorm( lt),1-pnorm( lt)
-#   # Z_s<-sum(z)/sqrt(S)
-#   # Z_cs<-sum(z_c)/sqrt(S)
-#   ###this is correct of the Z value is negative
-#   ##otherwise: 1-pnorm(Z_s)
-#   p_val_Z_s<-ifelse(Z_s<0,pnorm(Z_s),1-pnorm(Z_s))
-#   p_val_Z_s
-#   Z_sw<-sum(z*w)/sqrt(sum(w^2))
-#   p_val_Z_sw<-ifelse( Z_sw<0,pnorm( Z_sw),1-pnorm( Z_sw))
-#   p_val_Z_sw
-#   b.test= ifelse(lt==1,binom.test(sum(dev<0),S, 0.5, alternative = "greater")$p.value, binom.test(sum(dev>0),S, 0.5, alternative = "greater")$p.value)
-# 
-#   Z<-cbind(sum(dev),Z_s,Z_sw,p_val_Z_s,p_val_Z_sw,b.test,f_z)
-#   Z.names<-cbind("sum(dev)","Z_s","Z_sw","p_val_Z_s","p_val_Z_sw","b.test","f_z")
-#   write.table(Z,file=paste0("table_tests_",f_z))
-#   write.table(Z,file="table_tests_all_new",append=T,col.names = ifelse(f_z==100,T,F),row.names=F)
-#   return(Z)
-# }
-
-# esti_fisher<-function(f_z)
-# {
-#   E<-c()
-#   E.hat<-c()
-#   counts1=c()
-#   z=c()
-#   z_c=c()
-#   p.val<-c()
-#   p_val_c<-c()
-#   w=c()
-#   dev=c()
-#   b.test<-c()
-#   Code=unique(data[,5])
-#   for(i in 1:S)
-#   {
-#     code=Code[i]
-#     df_s<-subset(data,data[,5]==code)###subsets the data for one discipline given by "code"
-#     p<-subset(means[,2],means[,1]==code) ###Calculate the discipline mean (p.hat) 
-#     p=as.numeric(p)
-#     n<-dim(df_s)[1]## the number of departments### 
-#     k<-df_s$Size ### the vector of department sizes
-#     # w[i]<- #n#sum(k) 
-#     ###the weights do not accurately reflect the expected variance at the effect size. Maybe: use the expected number as the weights
-#     ###
-#     fe_f<-df_s$FE## the number of women in each department
-#     ###can calculate expected values in the same loop:
-#     E[i]<-sum(dbinom(f_z,k,p))##I think this is right!
-#     w[i]<-sqrt(n*mean(k))#*(1/E[i])#E[i]#n#sum(k) 
-#     # E.hat[i]<-sum(dbinom(f_z,X[,i],p.hat[i]))
-#     ### Now: calculate the number of zero women departments in the sample: 
-#     counts<-as.data.frame(table(fe_f)) ###these are the counts from the 
-#     # counts_res<-as.data.frame(table(results))
-#     if((length(subset(counts$Freq,counts$fe_f==f_z)>0)))
-#     {
-#       counts1[i]<- subset(counts$Freq,counts$fe_f==f_z)
-#     } else{ counts1[i]<-0}
-#     dev[i]<-counts1[i]-E[i]#as.character.factor(counts$Freq)#as.numeric(levels(counts))[f]-E###from the analytical probability
-#     #print(dev)
-#     lt=dev[i]<0###left-tailed: when lower.tail is true: it is a left tailed test, i.e. H_0:mu=mu_fz, H_a: mu<mu_fz
-#     #dev.hat<-counts1[i]-E.hat[i]####from the estimated probability
-#     theta_null<-E[i]/n
-#     theta.hat<-counts1[i]/n
-#     ###this is the test statistic that tests against H<: theta>theta_null, this then implies that theta
-#     ###then lt=T: this is a lower tail test. 
-#     ###the z statistic for each discipline##
-#     ###need to reformulate by lt: 
-#     #if le=1: this is correct. z[i]<-sqrt(n)*(theta.hat-theta_null)/sqrt(theta_null*(1-theta_null))
-#     ##otherwise: should be: z[i]<-sqrt(n)*(theta.hat+theta_null)/sqrt(theta_null*(1-theta_null))
-#     ltt=ifelse(lt==1,1,-1)
-#     z[i]<-sqrt(n)*(theta.hat-theta_null)/sqrt(theta_null*(1-theta_null))
-#     ####conctinuity correction
-#     z_c[i]=(counts1[i]-n*theta_null-ltt*(1/2)/S)/(sqrt(n*theta_null*(1-theta_null)))
-#     #Z=cbind(z,z_c)
-#     ######perform exact binomial sign tests and afterwards combine the p values:
-#     ###could also calculate the p-value for all these z-values: 
-#     ####with a one-sided test when the alternative is theta>theta_null: 
-#     # p_val[i]<-pnorm(z[i])
-#     #2*pnorm(-abs(z))
-#     ###in principle this correction should allow us to calculate exact p-values.
-#     #p_val_c[i]<-pnorm(z_c[i])
-#   }
-#   #####Calculate the combined Z score####
-#   #####
-#   #chi2=sum((dev)^2/E)
-#   #lt=sum(dev)<0
-#   #p_chi2= pchisq(chi2, df=S, ncp = 0, lower.tail = lt)
-#   for(i in 1:S)
-#   {
-#     p.val[i]= ifelse(lt==1,pnorm(z[i]),1-pnorm(z[i]))
-#   }
-#   
-#   # p_val_c= ifelse( lt<0,pnorm( lt),1-pnorm( lt)
-#   Z_s<-sum(z)/sqrt(S)
-#   Z_cs<-sum(z_c)/sqrt(S)
-#   ###this is correct of the Z value is negative
-#   ##otherwise: 1-pnorm(Z_s)
-#   p_val_Z_s<-ifelse(Z_s<0,pnorm(Z_s),1-pnorm(Z_s))
-#   p_val_Z_s
-#   p_val_Z_cs<-ifelse(Z_cs<0,pnorm(Z_cs),1-pnorm(Z_cs))
-#   p_val_Z_cs
-#   ####When do we reject? Maybe for the combined test: take the absolute value: 
-#   #####Calculate the weighted, combined Z score####
-#   #####These should give aprox. the same when the department sizes are the same and when the number of departments does not differ too much 
-#   #####between disciplines###############################
-#   #w=colSums(X)
-#   Z_sw<-sum(z*w)/sqrt(sum(w^2))
-#   Z_csw<-sum(z_c*w)/sqrt(sum(w^2))
-#   p_val_Z_sw<-ifelse( Z_sw<0,pnorm( Z_sw),1-pnorm( Z_sw))
-#   p_val_Z_sw
-#   p_val_Z_csw<-ifelse(Z_csw<0,pnorm(Z_csw),1-pnorm(Z_csw))
-#   p_val_Z_csw
-#   #######################################################################################
-#   #b.test<-ifelse(lt==1,binom.test((dev<0),50, 0.5, alternative = "greater"), binom.test((sum(dev>0)),50, 0.5, alternative = "greater")) #(one-tailed test)) #(one-tailed test))
-#   b.test= ifelse(lt==1,binom.test(sum(dev<0),S, 0.5, alternative = "greater")$p.value, binom.test(sum(dev<0),S, 0.5, alternative = "greater")$p.value)
-#   ####We could combine the p-value also, according to fisher
-#   #chi2<--2*sum(log(p.val))
-#   #chi2_c<--2*sum(log(p_val_Z_cs))
-#   #lt=Z_sw<0
-#   #pchisq(chi2, df=2*S, ncp = 0, lower.tail = lt)
-#   # pchisq(chi2_c, df=2*S, ncp = 0, lower.tail = lt)
-#   Z<-cbind(sum(dev),Z_s,Z_cs,Z_sw,Z_csw,p_val_Z_s,p_val_Z_cs,p_val_Z_sw, p_val_Z_csw,b.test,f_z)
-#   # Z.names<-cbind("Z_s","Z_cs","Z_sw","Z_csw","p_val_Z_s","p_val_Z_cs","p_val_Z_sw", "p_val_Z_csw","b.test","p_chi2","f_z")
-#   #if(f_z==0){names(Z)}
-#   write.table(Z,file=paste0("table_tests_",f_z))
-#   write.table(Z,file="table_tests_all",append=T,col.names = ifelse(f_z==100,T,F),row.names=F)
-#   return(Z)
-# }
-
-
-########Function for calculating the mode#############
-calculate_mode <- function(x) {
-  uniqx <- unique(x)
-  uniqx[which.max(tabulate(match(x, uniqx)))]
 }
